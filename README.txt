@@ -12,3 +12,6 @@ the server like so:
 Then the message sent to the server will be:	
 	GET / HTTP/1.0
 	Host: www.google.com
+
+Also I took the assignment literally when it said that all client request must be in absolute URI form.
+If client requests are not in absolute URI form, the proxy sends a 400 message to the client and exits.

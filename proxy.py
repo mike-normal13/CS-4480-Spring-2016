@@ -1,24 +1,8 @@
 #!/usr/bin/python
 
-#	TODO:	I am assuming that the port the proxy is listening on is not the port it will be sending to the server....
-#	TODO:	Before we worry about parsing the message from the client,
-#				Lets just assume correct GET messages 
-#				and see if we can't get the whole thing to work between the client -> proxy -> server -> proxy -> client
-#	TODO:	are we dealing with persistent TCP conections here?
 # 	TODO: more stringent port input validation would be nice....
-#	TODO:	1:	Start the thing via command line
-#			2:	Have socket listen in designated port
-#			3:	When the client makes a request, have the proxy parse it
-#			4:	have the proxy send the appropriate error code back if the request is ill formed
-#					Send back error code 501 if GET is not sent
-#					Send back error code 400 for all other cases
-#			5:		
-#			6:
-#		
-#			once the proxy is ready to open a connection to the url requested by the client
 
 import sys
-
 from socket import *
 
 # port members
@@ -38,7 +22,11 @@ valid_client_message = False
 client_requested_host = ''		
 client_requested_URL = ''
 
+# response from the server
 server_response = ''
+
+# part of the message from client in the URL after the host name.
+index_in = ''
 
 # Get port
 if len(sys.argv) != 1:
@@ -49,7 +37,7 @@ listen_port = int(listen_port)
 
 #	socket the proxy will be using to communicate with the client, this socket will be the doorway knocked on first.
 client_sock = socket(AF_INET, SOCK_STREAM)
-#	Socket the proxy will use to comunicate with next node in the network
+#	Socket the proxy will use to communicate with next node in the network
 out_sock = socket(AF_INET, SOCK_STREAM)
 
 client_sock.bind((client_requested_host, listen_port))
@@ -64,7 +52,9 @@ while valid_client_message == False:
 	#	parse the client message to an array
 	client_message_array = client_message.split(' ')
 
-	print client_message
+	#	some checks for proper formating
+	#if client_message_array[2]
+
 	#	check that the client sent a GET request
 	if client_message_array[0] == 'GET':
 		# TODO:	do further parsing to determine if the message from the client is valid
@@ -81,6 +71,20 @@ while valid_client_message == False:
 		# get URL
 		client_requested_URL = client_message_array[1]
 
+		# a few checks
+			#	check for absoulute URI
+		if (client_requested_URL.startswith('http://')) or (client_requested_URL.startswith('https://')):
+			s = 2				# PYTHON!!!
+		else:
+			dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+			dedicated_con_sock.close()
+			exit()
+			# check third arg in first line of message
+		if 'HTTP/' not in client_message_array[2]:
+			dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+			dedicated_con_sock.close()
+			exit()
+
 		#if the requested URL contains 'https://' etc, remove it
 		if 'http://' in  client_requested_URL:
 			client_requested_host = client_requested_URL.replace('http://', '')
@@ -89,38 +93,39 @@ while valid_client_message == False:
 		else:
 			client_requested_host = client_requested_URL
 
-		print 'client_requested_host after removing http(s)://: ', client_requested_host
+		#start_host = client_requested_host.find('www.')
+		start_host = 0
 
-		start_host = client_requested_host.find('www')
+		# if the URI does not contain 'www.'
 
 		# if the given URL goes beyond the host name i.e. contains a '/'
 		if '/' in client_requested_host:
-			print 'there is a / in the url'
 			end_host = client_requested_host.find('/', start_host)
+			# grab the part of the URL after the host name
+			index_in = client_requested_host[end_host:len(client_requested_host)]
 			client_requested_host = client_requested_host[start_host:end_host]
 		# else if the URL ends with .com or .edu, etc...
 		else:
-			print 'there is no / in the URL'
 			client_requested_host = client_requested_host[start_host:len(client_requested_URL)]
 
-		print 'client_requested_host: ', client_requested_host
-		
 		#	TODO:	verify that the host given by client is valid URI sybtax
 
 		#	if so, break
 		valid_client_message = True
 	elif client_message_array[0] =='HEAD' or client_message_array[0] =='POST' or client_message_array[0] =='PUT' or client_message_array[0] =='DELETE' or client_message_array[0] =='TRACE' or client_message_array[0] =='OPTIONS' or client_message_array[0] =='PATCH':
-		dedicated_con_sock.send('HTTP/1.1 501 Not Implemented')		#	TODO:	there needs to be more to this message...
+		dedicated_con_sock.send('HTTP/1.0 501 Not Implemented\n')		#	TODO:	there needs to be more to this message...
+		dedicated_con_sock.close()
 	else:
-		dedicated_con_sock.send('HTTP/1.1 400 Bad Request')	#	TODO: for now we will stick with this
+		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')	#	TODO: for now we will stick with this
 															#			however, this is probably not the correct format of message 
 															#			they are looking for..
+		dedicated_con_sock.close()
 #	TODO: now that we have the message sent by the client, we need to pass it on to the server,
 #out_socket.connect((client_message_array[1], server_port))
 out_sock.connect((client_requested_host, 80))						#	TODO:	we need to actually parse the host name and put it here....
 
 # make the string to send to the server
-server_request = 'GET / ' + client_message_array[2] + '\nHost: ' + client_requested_host + '\nConection: Close'
+server_request = 'GET ' + index_in + " " + client_message_array[2] + '\nHost: ' + client_requested_host + '\nConection: Close'
 
 out_sock.send(server_request)
 server_response = out_sock.recv(1024)	
@@ -128,6 +133,12 @@ server_response = out_sock.recv(1024)
 print 'server response: ', server_response
 
 dedicated_con_sock.send(server_response)
+
+dedicated_con_sock.close()
+out_sock.close()
+#client_sock.shutdown(SHUT_RDWR)
+client_sock.close()
+exit(0)
 
 
 
