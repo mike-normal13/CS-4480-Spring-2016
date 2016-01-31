@@ -15,3 +15,7 @@ Then the message sent to the server will be:
 
 Also I took the assignment literally when it said that all client request must be in absolute URI form.
 If client requests are not in absolute URI form, the proxy sends a 400 message to the client and exits.
+
+Also, right after each run of my script, it takes about 10 seconds for the port my proxy is listening on for the client to unbind.
+I tried closing all my sockets at the end of the scripts execution,
+but that did not help. 

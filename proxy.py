@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# 	TODO: more stringent port input validation would be nice....
-
 import sys
 from socket import *
 
@@ -59,15 +57,6 @@ while valid_client_message == False:
 	if client_message_array[0] == 'GET':
 		# TODO:	do further parsing to determine if the message from the client is valid
 
-		#	TODO:	do a basic parse to get the URL from the client
-		#	Example of simple get message:
-		#	GET /hello.htm HTTP/1.1
-		#	User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)
-		#	Host: www.tutorialspoint.com
-		#	Accept-Language: en-us
-		#	Accept-Encoding: gzip, deflate
-		#	Connection: Keep-Alive
-
 		# get URL
 		client_requested_URL = client_message_array[1]
 
@@ -96,8 +85,6 @@ while valid_client_message == False:
 		#start_host = client_requested_host.find('www.')
 		start_host = 0
 
-		# if the URI does not contain 'www.'
-
 		# if the given URL goes beyond the host name i.e. contains a '/'
 		if '/' in client_requested_host:
 			end_host = client_requested_host.find('/', start_host)
@@ -107,8 +94,6 @@ while valid_client_message == False:
 		# else if the URL ends with .com or .edu, etc...
 		else:
 			client_requested_host = client_requested_host[start_host:len(client_requested_URL)]
-
-		#	TODO:	verify that the host given by client is valid URI sybtax
 
 		#	if so, break
 		valid_client_message = True
