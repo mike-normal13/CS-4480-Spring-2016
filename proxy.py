@@ -58,15 +58,19 @@ while valid_client_message == False:
 	#	parse the client message to an array based upon \r\n
 	client_message_array = client_message.split("\\r\\n")
 
-	#for word in range(0,len(client_message_array)):
-		#print client_message_array[word]
-
-	# if the message was formated correctly there should be an '' and '\r\n' in the last two positions, remove them
-	client_message_array.remove('')
-	client_message_array.remove('\r\n')
+		# just in case the client sends the one GET line only, and only has one \r\n on the end of it....
+	try:
+		# if the message was formated correctly there should be an '' and '\r\n' in the last two positions, remove them
+		client_message_array.remove('')
+		client_message_array.remove('\r\n')
+	except ValueError:
+		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+		dedicated_con_sock.close()
+		exit()
 
 	# at this point the number of '\r\n' suppiled by the client in the message should be one more 
 	#	than the number of items in the client_message_array
+	#	TODO:	this check does not accout for an entity Body, if the user suplies an entity body, this block will terminate.
 	if new_line_count != len(client_message_array) + 1:
 		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
 		dedicated_con_sock.close()
@@ -80,7 +84,6 @@ while valid_client_message == False:
 		get_line_array = client_message_array[0].split()
 
 		# get URL
-		#client_requested_URL = client_message_array[1]
 		client_requested_URL = get_line_array[1]
 
 		# a few checks
@@ -148,16 +151,12 @@ while valid_client_message == False:
 		dedicated_con_sock.send('HTTP/1.0 501 Not Implemented\n')		#	TODO:	there needs to be more to this message...
 		dedicated_con_sock.close()
 	else:
-		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')	#	TODO: for now we will stick with this
-															#			however, this is probably not the correct format of message 
-															#			they are looking for..
+		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
 		dedicated_con_sock.close()
 
-out_sock.connect((client_requested_host, 80))						#	TODO:	we need to actually parse the host name and put it here....
+out_sock.connect((client_requested_host, 80))						
 
-# make the string to send to the server
-#server_request = 'GET ' + index_in + " " + client_message_array[2] + '\nHost: ' + client_requested_host + '\nConection: Close'
-
+# if the user supplied a url that goes past .com etc
 if past_base_page == True:
 	server_request = 'GET ' + index_in + ' HTTP/1.0\r\n'
 
@@ -169,10 +168,11 @@ else:
 	for line in range(1,len(client_message_array) - 1):
 		server_request = server_request + client_message_array[line] + '\r\n' 
 
+# one last new line
 server_request = server_request + '\r\n'
 #TODO: is this enough? should we provide any other hearders??
 
-print 'server_request: ', server_request
+print 'server_request:\n', server_request
 
 out_sock.send(server_request)
 server_response = out_sock.recv(1024)	
