@@ -38,6 +38,8 @@ client_sock = socket(AF_INET, SOCK_STREAM)
 #	Socket the proxy will use to communicate with next node in the network
 out_sock = socket(AF_INET, SOCK_STREAM)
 
+client_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+
 client_sock.bind((client_requested_host, listen_port))
 client_sock.listen(1)			#	1 for now...
 
