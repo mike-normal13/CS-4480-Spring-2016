@@ -70,7 +70,7 @@ while valid_client_message == False:
 
 	# at this point the number of '\r\n' suppiled by the client in the message should be one more 
 	#	than the number of items in the client_message_array
-	#	TODO:	this check does not accout for an entity Body, if the user suplies an entity body, this block will terminate.
+	#	TODO:	this check does not account for an entity Body, if the user suplies an entity body, this block will terminate.
 	if new_line_count != len(client_message_array) + 1:
 		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
 		dedicated_con_sock.close()
