@@ -1,12 +1,12 @@
 #!/usr/bin/python
 
+import re
 import sys
 from socket import *
 
 # port members
 listen_port = 80
-server_port = 80		#	TODO:	we will assume for now that any server this proxy sends a request to 
-						#				will be listening on port 80
+server_port = 80
 
 #	client message storage member
 client_message = ''
@@ -15,6 +15,9 @@ client_message_array = []
 
 # flag indicating a connection has been made between the proxy and the client.
 valid_client_message = False
+
+#flag indaicating that the client requested a URL that went past the base page of a 
+past_base_page = False
 
 # will be parsed from 'client_message'
 client_requested_host = ''		
@@ -38,7 +41,8 @@ client_sock = socket(AF_INET, SOCK_STREAM)
 #	Socket the proxy will use to communicate with next node in the network
 out_sock = socket(AF_INET, SOCK_STREAM)
 
-client_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+# doing this makes it so I don't have to wait 10 seconds or so between runs of the script waiting for this socket to close all the way.
+client_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)  #http://stackoverflow.com/questions/2765152/what-is-the-correct-way-to-close-a-socket-in-python-2-6
 
 client_sock.bind((client_requested_host, listen_port))
 client_sock.listen(1)			#	1 for now...
@@ -49,18 +53,35 @@ while valid_client_message == False:
 	dedicated_con_sock, addr = client_sock.accept()
 	client_message = dedicated_con_sock.recv(1024)
 	
-	#	parse the client message to an array
-	client_message_array = client_message.split(' ')
+	new_line_count = client_message.count('\\r\\n')
+
+	#	parse the client message to an array based upon \r\n
+	client_message_array = client_message.split("\\r\\n")
+
+	#for word in range(0,len(client_message_array)):
+		#print client_message_array[word]
+
+	# if the message was formated correctly there should be an '' and '\r\n' in the last two positions, remove them
+	client_message_array.remove('')
+	client_message_array.remove('\r\n')
+
+	# at this point the number of '\r\n' suppiled by the client in the message should be one more 
+	#	than the number of items in the client_message_array
+	if new_line_count != len(client_message_array) + 1:
+		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+		dedicated_con_sock.close()
+		exit()
 
 	#	some checks for proper formating
-	#if client_message_array[2]
-
 	#	check that the client sent a GET request
-	if client_message_array[0] == 'GET':
-		# TODO:	do further parsing to determine if the message from the client is valid
+	if client_message_array[0].startswith('GET'):
+
+		# grab the first line and split it by white space
+		get_line_array = client_message_array[0].split()
 
 		# get URL
-		client_requested_URL = client_message_array[1]
+		#client_requested_URL = client_message_array[1]
+		client_requested_URL = get_line_array[1]
 
 		# a few checks
 			#	check for absoulute URI
@@ -71,10 +92,32 @@ while valid_client_message == False:
 			dedicated_con_sock.close()
 			exit()
 			# check third arg in first line of message
-		if 'HTTP/' not in client_message_array[2]:
+		if 'HTTP/' not in get_line_array[2] and (get_line_array[2].endswith('\\r\\n') == False):
 			dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
 			dedicated_con_sock.close()
 			exit()
+
+		#	within the client message array,
+		#		if a word ends with \n then the next word must end with :
+		i = 1
+		while i < len(client_message_array) - 1:
+
+			#split each line into arrays delimited by ' '
+			header_line_array = client_message_array[i].split()
+
+			# check for header line startign with cap letter
+			if header_line_array[0][0].isupper() == False:
+				dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+				dedicated_con_sock.close()
+				exit()
+
+			# check for header line first word ending with ':'
+			if header_line_array[0].endswith(':') == False:
+				dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
+				dedicated_con_sock.close()
+				exit()
+
+			i = i + 1
 
 		#if the requested URL contains 'https://' etc, remove it
 		if 'http://' in  client_requested_URL:
@@ -93,6 +136,8 @@ while valid_client_message == False:
 			# grab the part of the URL after the host name
 			index_in = client_requested_host[end_host:len(client_requested_host)]
 			client_requested_host = client_requested_host[start_host:end_host]
+
+			past_base_page = True
 		# else if the URL ends with .com or .edu, etc...
 		else:
 			client_requested_host = client_requested_host[start_host:len(client_requested_URL)]
@@ -107,12 +152,27 @@ while valid_client_message == False:
 															#			however, this is probably not the correct format of message 
 															#			they are looking for..
 		dedicated_con_sock.close()
-#	TODO: now that we have the message sent by the client, we need to pass it on to the server,
-#out_socket.connect((client_message_array[1], server_port))
+
 out_sock.connect((client_requested_host, 80))						#	TODO:	we need to actually parse the host name and put it here....
 
 # make the string to send to the server
-server_request = 'GET ' + index_in + " " + client_message_array[2] + '\nHost: ' + client_requested_host + '\nConection: Close'
+#server_request = 'GET ' + index_in + " " + client_message_array[2] + '\nHost: ' + client_requested_host + '\nConection: Close'
+
+if past_base_page == True:
+	server_request = 'GET ' + index_in + ' HTTP/1.0\r\n'
+
+	for line in range(1,len(client_message_array) - 1):
+		server_request = server_request + client_message_array[line] + '\r\n' 
+else:
+	server_request = 'GET / HTTP/1.0\r\n'
+
+	for line in range(1,len(client_message_array) - 1):
+		server_request = server_request + client_message_array[line] + '\r\n' 
+
+server_request = server_request + '\r\n'
+#TODO: is this enough? should we provide any other hearders??
+
+print 'server_request: ', server_request
 
 out_sock.send(server_request)
 server_response = out_sock.recv(1024)	
@@ -123,9 +183,5 @@ dedicated_con_sock.send(server_response)
 
 dedicated_con_sock.close()
 out_sock.close()
-#client_sock.shutdown(SHUT_RDWR)
 client_sock.close()
 exit(0)
-
-
-
