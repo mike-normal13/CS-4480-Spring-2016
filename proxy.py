@@ -154,6 +154,7 @@ while valid_client_message == False:
 		dedicated_con_sock.send('HTTP/1.0 400 Bad Request\n')
 		dedicated_con_sock.close()
 
+print '*************************client_requested_host: ', client_requested_host
 out_sock.connect((client_requested_host, 80))						
 
 # if the user supplied a url that goes past .com etc
